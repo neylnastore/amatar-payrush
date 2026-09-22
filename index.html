@@ -178,17 +178,17 @@
     </div>
 </div>
 
-<!-- SCRIPT 1: LOGIKA FIREBASE UNTUK PIN -->
+<!-- SCRIPT 1: LOGIKA FIREBASE UNTUK PIN (MAX 3 USER) -->
 <script type="module">
-    // Import SDK Firebase versi 10
+    // Import fungsi Firestore yang dibutuhkan (termasuk updateDoc dan increment)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
     // ========================================================
-    // COPAS FIREBASE CONFIG KAMU DI SINI (Ganti kode di bawah)
+    // COPAS FIREBASE CONFIG KAMU DI SINI
     // ========================================================
     const firebaseConfig = {
-  apiKey: "AIzaSyCzXtFAdhU_rz75GvOcGyZ2YmbV5zTXGV0",
+        apiKey: "AIzaSyCzXtFAdhU_rz75GvOcGyZ2YmbV5zTXGV0",
   authDomain: "amatar-761b7.firebaseapp.com",
   projectId: "amatar-761b7",
   storageBucket: "amatar-761b7.firebasestorage.app",
@@ -197,24 +197,22 @@
   measurementId: "G-ECS5Z2Q8DC"
     };
 
-    // Inisialisasi Firebase & Firestore
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Ambil elemen HTML
     const pinInput = document.getElementById('pinInput');
     const btn = document.getElementById('pinBtn');
     const errorMsg = document.getElementById('pinError');
     const overlay = document.getElementById('pinOverlay');
 
-    // Trigger saat tombol ditekan
+    // CEK OTOMATIS: Kalau user ini sebelumnya sudah pernah login pakai PIN, langsung buka saja
+    if (localStorage.getItem('amatar_unlocked_pin')) {
+        unlockScreen();
+    }
+
     btn.addEventListener('click', verifyPinFirebase);
-    
-    // Trigger saat Enter ditekan
     pinInput.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
-            verifyPinFirebase();
-        }
+        if (e.key === 'Enter') verifyPinFirebase();
     });
 
     async function verifyPinFirebase() {
@@ -226,30 +224,49 @@
         errorMsg.classList.add('hidden');
 
         try {
-            // Mengecek apakah dokumen PIN tersebut ADA di collection "akses_pin"
             const docRef = doc(db, "akses_pin", pin);
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
-                // PIN Benar! Hilangkan overlay
-                overlay.classList.add('opacity-0');
-                document.body.classList.remove('overflow-hidden');
-                setTimeout(() => overlay.remove(), 500); 
+                const data = docSnap.data();
+                
+                // Cek apakah PIN sudah terpakai 3 kali
+                if (data.usageCount >= 3) {
+                    showError("PIN ini sudah mencapai batas maksimal (3 Pengguna)!");
+                    return;
+                }
+
+                // Jika masih kurang dari 3, tambahkan 1 ke database (+1)
+                await updateDoc(docRef, {
+                    usageCount: increment(1)
+                });
+
+                // Simpan kunci di browser HP ini agar kalau web di-refresh tidak memakan jatah PIN lagi
+                localStorage.setItem('amatar_unlocked_pin', pin);
+                
+                unlockScreen();
             } else {
-                // Dokumen PIN tidak ditemukan (Salah)
-                showError();
+                showError("PIN tidak ditemukan atau salah!");
             }
         } catch (error) {
             console.error("Error cek PIN:", error);
-            showError();
+            // Error ini akan muncul juga kalau Firebase menolak updateDoc (karena Rules: sudah >= 3)
+            showError("Gagal verifikasi. Pastikan PIN benar atau cek koneksi.");
         }
+    }
 
-        function showError() {
-            errorMsg.classList.remove('hidden');
-            btn.innerHTML = 'Buka Kunci 🚀';
-            pinInput.value = '';
-            pinInput.focus();
-        }
+    function showError(pesan) {
+        errorMsg.textContent = pesan;
+        errorMsg.classList.remove('hidden');
+        btn.innerHTML = 'Buka Kunci 🚀';
+        pinInput.value = '';
+        pinInput.focus();
+    }
+
+    function unlockScreen() {
+        overlay.classList.add('opacity-0');
+        document.body.classList.remove('overflow-hidden');
+        setTimeout(() => overlay.remove(), 500); 
     }
 </script>
 
