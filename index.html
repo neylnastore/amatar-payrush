@@ -230,28 +230,27 @@
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 
-                // Cek apakah PIN sudah terpakai 3 kali
-                if (data.usageCount >= 3) {
+                // Jaga-jaga kalau PIN lama kosong, paksa jadikan 0
+                const pemakaiSaatIni = data.usageCount || 0; 
+                
+                if (pemakaiSaatIni >= 3) {
                     showError("PIN ini sudah mencapai batas maksimal (3 Pengguna)!");
                     return;
                 }
 
-                // Jika masih kurang dari 3, tambahkan 1 ke database (+1)
+                // Tambahkan +1 pengguna
                 await updateDoc(docRef, {
                     usageCount: increment(1)
                 });
 
-                // Simpan kunci di browser HP ini agar kalau web di-refresh tidak memakan jatah PIN lagi
                 localStorage.setItem('amatar_unlocked_pin', pin);
-                
                 unlockScreen();
             } else {
                 showError("PIN tidak ditemukan atau salah!");
             }
         } catch (error) {
             console.error("Error cek PIN:", error);
-            // Error ini akan muncul juga kalau Firebase menolak updateDoc (karena Rules: sudah >= 3)
-            showError("Gagal verifikasi. Pastikan PIN benar atau cek koneksi.");
+            showError("Gagal! Pastikan kode firebaseConfig milikmu sudah dimasukkan dengan benar.");
         }
     }
 
